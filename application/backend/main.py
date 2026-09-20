@@ -1,5 +1,11 @@
+import csv
+import json
+from pathlib import Path
+
 from fastapi import FastAPI
 from pydantic import BaseModel
+
+DATA_DIR = Path(__file__).resolve().parent / "data"
 
 app = FastAPI()
 
@@ -17,7 +23,27 @@ class AlertInput(BaseModel):
 
 
 class AlertOutput(BaseModel):
-    pass
+    message: str
+
+
+def _load_medicine_effects() -> dict[str, str]:
+    effects: dict[str, str] = {}
+    with open(DATA_DIR / "medicineinfo.csv", newline="", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            drug = row["drug_name"].strip()
+            if drug:
+                effects[drug.upper()] = row["heat_related_effects"]
+    return effects
+
+
+def _count_medications() -> dict[str, int]:
+    with open(DATA_DIR / "patientdata.json", encoding="utf-8") as f:
+        data = json.load(f)
+    counts: dict[str, int] = {}
+    for patient in data["patients"]:
+        for med in patient["medications"]:
+            counts[med] = counts.get(med, 0) + 1
+    return counts
 
 
 @app.post("/assess_risk")
@@ -27,4 +53,18 @@ def assess_risk(body: AssessRiskInput) -> AssessRiskOutput:
 
 @app.post("/alert")
 def alert(body: AlertInput) -> AlertOutput:
-    pass
+    counts = _count_medications()
+    effects = _load_medicine_effects()
+
+    lines = [
+        "There is projected to be a heat wave event. Please make sure to take necessary precautions."
+    ]
+    for med, count in counts.items():
+        key = med.upper()
+        if key in effects:
+            lines.append(
+                f"You have {count} patients taking {med}. Patients taking this medicine may experience:\n{effects[key]}"
+            )
+    lines.append("If you have any questions, please consult with your medical provider.")
+
+    return AlertOutput(message="\n".join(lines))
