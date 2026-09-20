@@ -1,5 +1,6 @@
 import csv
 import json
+from datetime import date
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -96,4 +97,8 @@ def alert(body: AlertInput) -> AlertOutput:
             )
     lines.append("If you have any questions, please consult with your medical provider.")
 
-    return AlertOutput(message="\n".join(lines))
+    message = "\n\n".join(lines)
+    alert_file = ALERT_DIR / f"alert-{date.today().isoformat()}.txt"
+    alert_file.write_text(message, encoding="utf-8")
+
+    return AlertOutput(message=message)
