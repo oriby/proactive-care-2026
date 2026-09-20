@@ -25,6 +25,12 @@ npm install
 npm run dev
 ```
 
+Trigger an alert:
+
+```bash
+curl -X POST http://localhost:8000/alert -H "Content-Type: application/json" -d '{}'
+```
+
 ## Model
 
 A demonstration showing the machine learning model we'd implement for decision-making if we had more time.
