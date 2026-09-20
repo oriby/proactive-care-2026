@@ -1,0 +1,1059 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Heat-Medication Risk Graph</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #F4F6F9; --bg-panel: #FFFFFF; --bg-panel-raised: #F5F7FA;
+    --line: #DDE3EB; --line-soft: #EAEEF3; --edge-idle: #C8D0DA;
+    --text: #1D2733; --text-dim: #566373; --text-faint: #6F7C8B;
+    --accent: #2F7FC1;
+
+    --c-medication: #4EA8DE;
+    --c-comorbidity: #9D7FE8;
+    --c-heat: #E8543D;
+    --c-pollen: #7CBB5B;
+    --c-mechanism: #F2A65A;
+    --c-outcome: #E14361;
+
+    --tier-low: #2E9D62; --tier-moderate: #C79A0E; --tier-high: #E2701F; --tier-critical: #D12F4E;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  * { box-sizing: border-box; }
+  html, body { min-height: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: 'Manrope', system-ui, sans-serif; -webkit-font-smoothing: antialiased;
+  }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  textarea, input, select, button { font-family: inherit; }
+
+  header.top {
+    background: var(--bg-panel);
+    padding: 14px 24px calc(12px + env(safe-area-inset-top, 0px));
+    display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px;
+    border-bottom: 1px solid var(--line);
+  }
+  header.top h1 { font-size: 15px; font-weight: 700; margin: 0; }
+  header.top .sub { font-size: 12px; color: var(--text-dim); }
+
+  .page { max-width: 1560px; margin: 0 auto; padding: 18px 20px 48px; display: grid; gap: 16px; }
+  .card { background: var(--bg-panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; box-shadow: 0 1px 2px rgba(20,30,50,.04), 0 6px 18px rgba(20,30,50,.05); }
+  h2.section-title { font-size: 10.5px; font-weight: 700; color: var(--text-faint); letter-spacing: 0.06em; margin: 0 0 8px; }
+
+  /* ---------- intake: a wide editor that paints keyword highlights (after Parse) from a mirrored backdrop ---------- */
+  .intake-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
+  .med-title { font-size: 18px; font-weight: 800; letter-spacing: .02em; margin: 0; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  button.btn {
+    border: 1px solid var(--line); background: var(--bg-panel); color: var(--text);
+    border-radius: 8px; padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  button.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.btn:hover { filter: brightness(1.06); }
+  button.btn:active { transform: translateY(1px); }
+
+  .editor { position: relative; background: var(--bg-panel-raised); border-radius: 10px; }
+  .editor-backdrop, textarea#intake {
+    width: 100%; margin: 0; border: 1px solid var(--line); border-radius: 10px; padding: 20px 24px;
+    font-size: 15px; line-height: 1.9; font-family: 'Manrope', system-ui, sans-serif; letter-spacing: 0.005em;
+    text-transform: lowercase; /* readability: no ALL-CAPS labels, whatever gets pasted */
+    white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; tab-size: 4;
+    overflow-y: scroll; overflow-x: hidden;
+  }
+  .editor-backdrop { position: absolute; inset: 0; color: transparent; border-color: transparent; pointer-events: none; }
+  .editor-backdrop::-webkit-scrollbar-thumb { background: transparent; }
+  textarea#intake { display: block; position: relative; min-height: 250px; resize: none; background: transparent; color: var(--text); }
+  textarea#intake:focus { outline: none; border-color: var(--accent); }
+  /* highlights sweep in one after another when Parse is pressed (--i is the keyword's order) */
+  .editor-backdrop mark {
+    color: transparent; border-radius: 4px;
+    background: linear-gradient(var(--hl), var(--hl)) left center / 100% 100% no-repeat;
+    box-shadow: 0 0 0 2px var(--hl);
+    animation: hlSweep .5s ease both; animation-delay: calc(var(--i, 0) * 60ms);
+  }
+  @keyframes hlSweep { from { background-size: 0% 100%; box-shadow: 0 0 0 0 transparent; } to { background-size: 100% 100%; box-shadow: 0 0 0 2px var(--hl); } }
+  mark.hl-medication  { --hl: rgba(78,168,222,.32); }
+  mark.hl-comorbidity { --hl: rgba(157,127,232,.30); }
+  mark.hl-heat        { --hl: rgba(232,84,61,.26); }
+
+  /* ---------- lower area: graph (left) + score/summary (right) ---------- */
+  .lower { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; align-items: start; }
+  @media (max-width: 1100px) { .lower { grid-template-columns: 1fr; } }
+
+  .pipeline { display: flex; align-items: center; gap: 6px; margin: 0 0 14px; font-size: 11px; color: var(--text-faint); flex-wrap: wrap; }
+  .pipeline .step { display: flex; align-items: center; gap: 5px; white-space: nowrap; transition: color .3s ease; }
+  .pipeline .step .num { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--line); display: flex; align-items: center; justify-content: center; font-size: 9px; font-family: 'IBM Plex Mono', monospace; font-weight: 600; transition: all .3s ease; }
+  .pipeline .step.done .num { background: var(--tier-low); border-color: var(--tier-low); color: #fff; }
+  .pipeline .step.active .num { border-color: var(--accent); color: var(--accent); animation: stepPulse 1.1s ease-in-out infinite; }
+  .pipeline .step.done, .pipeline .step.active { color: var(--text); }
+  .pipeline .rule { flex: 1; height: 1px; background: var(--line); min-width: 8px; }
+  @keyframes stepPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(47,127,193,.35); } 50% { box-shadow: 0 0 0 5px rgba(47,127,193,0); } }
+
+
+  .graph-scroll { overflow-x: auto; padding-bottom: 4px; }
+  /* padding-top is the reserved bus lane above the columns: it must be >= LANE_TOP + (busEdges - 1) * LANE_STEP + margin (see the routing constants in the JS below) */
+  .graph-wrap { position: relative; min-width: 880px; padding-top: 60px; min-height: 560px; }
+  svg.edges { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+  .columns { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); column-gap: 64px; position: relative; z-index: 2; }
+  .col { display: flex; flex-direction: column; gap: 10px; }
+  .col-label { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; color: var(--text-faint); text-align: center; margin-bottom: 2px; min-height: 24px; display: flex; align-items: center; justify-content: center; }
+  .node {
+    border-radius: 8px; padding: 8px 9px; font-size: 11.5px; font-weight: 600; line-height: 1.3;
+    border: 1.5px solid transparent; background: var(--bg-panel-raised); color: var(--text-dim);
+    opacity: 0.5; transition: opacity .35s ease, box-shadow .35s ease, background .35s ease, border-color .35s ease; position: relative; cursor: pointer;
+  }
+  .node.selected { opacity: 1; outline: 2px solid var(--text); outline-offset: 2px; }
+  .node:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .node.active { opacity: 1; color: var(--text); }
+  .node.pop { animation: nodePop .55s ease; }
+  @keyframes nodePop { 0% { transform: scale(.93); } 55% { transform: scale(1.06); } 100% { transform: scale(1); } }
+  .node[data-cat="medication"] { border-color: rgba(78,168,222,.35); }
+  .node[data-cat="medication"].active { border-color: var(--c-medication); background: #E6F3FB; box-shadow: 0 2px 12px rgba(78,168,222,.30); }
+  .node[data-cat="comorbidity"] { border-color: rgba(157,127,232,.35); }
+  .node[data-cat="comorbidity"].active { border-color: var(--c-comorbidity); background: #EFEAFB; box-shadow: 0 2px 12px rgba(157,127,232,.28); }
+  .node[data-cat="heat"] { border-color: rgba(232,84,61,.35); }
+  .node[data-cat="heat"].active { border-color: var(--c-heat); background: #FDEBE7; box-shadow: 0 2px 12px rgba(232,84,61,.26); }
+  .node[data-cat="pollen"] { border-color: rgba(124,187,91,.4); }
+  .node[data-cat="pollen"].active { border-color: var(--c-pollen); background: #EAF5E2; box-shadow: 0 2px 12px rgba(124,187,91,.28); }
+  .node[data-cat="mechanism"] { border-color: rgba(242,166,90,.4); }
+  .node[data-cat="mechanism"].active { border-color: var(--c-mechanism); background: #FEF1E0; box-shadow: 0 2px 12px rgba(242,166,90,.30); }
+  .node[data-cat="outcome"] { border-color: rgba(225,67,97,.32); }
+  .node[data-cat="outcome"].active { border-color: var(--c-outcome); background: #FCE6EB; box-shadow: 0 2px 14px rgba(225,67,97,.30); }
+
+  .edge-line { stroke: var(--edge-idle); stroke-width: 1.2; fill: none; opacity: .7; }
+  /* bus-lane edges (skip >= 2 columns): dashed and lighter, so direct risk modifiers read differently from adjacent-column links */
+  .edge-line.bus { stroke-dasharray: 5 4; opacity: .4; }
+  /* the coloured edge that is drawn on top when the graph lights up */
+  .edge-hot { fill: none; stroke-width: 2.2; stroke-linecap: round; }
+  .edge-hot.bus { stroke-dasharray: 5 4; stroke-width: 1.7; stroke-linecap: butt; opacity: .9; }
+  .edge-weight { font-family: 'IBM Plex Mono', monospace; font-size: 9px; fill: var(--text-faint); opacity: 0; transition: opacity .4s ease; paint-order: stroke; stroke: var(--bg-panel); stroke-width: 3px; stroke-linejoin: round; }
+  .edge-weight.active { opacity: 1; fill: var(--text); }
+
+  /* node summary, under the graph */
+  .node-detail { border: 1px solid var(--line); border-left: 3px solid var(--line); border-radius: 10px; background: var(--bg-panel-raised); padding: 12px 15px; margin-top: 14px; }
+  .node-detail .nd-cat { font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: .05em; text-transform: uppercase; font-weight: 700; }
+  .node-detail .nd-label { font-size: 14px; font-weight: 700; margin: 2px 0 4px; }
+  .node-detail .nd-text { font-size: 12.5px; line-height: 1.6; color: var(--text); }
+  .nd-hint { font-size: 12px; color: var(--text-faint); border: 1px dashed var(--line); border-radius: 10px; padding: 11px 14px; margin-top: 14px; }
+  a.ref-link { color: #1F6FB2; text-decoration: none; white-space: nowrap; }
+  a.ref-link:hover { text-decoration: underline; }
+
+  /* ---------- right side: heat score + summary ---------- */
+  .side { display: grid; gap: 16px; }
+  .empty-hint { color: var(--text-faint); font-size: 12.5px; line-height: 1.6; }
+  .reveal { animation: fadeUp .45s ease both; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .headline-card .label { font-size: 10.5px; letter-spacing: .05em; color: var(--text-faint); font-weight: 700; margin-bottom: 6px; }
+  .headline-card .score-row { display: flex; align-items: baseline; gap: 8px; }
+  .headline-card .score { font-family: 'IBM Plex Mono', monospace; font-size: 44px; font-weight: 700; }
+  .headline-card .score-max { font-size: 16px; color: var(--text-faint); font-family: 'IBM Plex Mono', monospace; }
+  .flag-banner { margin-top: 10px; padding: 8px 11px; border-radius: 8px; font-size: 12px; font-weight: 700; animation: fadeUp .5s ease .9s both; }
+  .flag-banner.flagged { background: rgba(209,47,78,0.09); color: #B72443; border: 1px solid var(--tier-critical); }
+  .flag-banner.ok { background: rgba(46,157,98,0.09); color: #1F7F4D; border: 1px solid var(--tier-low); }
+  .threshold-line { font-size: 10.5px; color: var(--text-faint); margin-top: 8px; line-height: 1.5; }
+
+  .sp-loading { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text-dim); padding: 6px 0 2px; }
+  .spinner { width: 18px; height: 18px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; flex-shrink: 0; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) {
+    .spinner { animation-duration: 2.4s; }
+    .editor-backdrop mark, .node.pop, .reveal, .flag-banner, .pipeline .step.active .num { animation: none; }
+  }
+
+  .sp-text { font-size: 13px; line-height: 1.65; margin: 0 0 4px; }
+  .sp-head { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; color: var(--text-faint); margin: 16px 0 6px; }
+  .sp-sub { font-size: 12.5px; font-weight: 600; margin: 8px 0 4px; }
+  ul.sp-steps { list-style: none; margin: 0; padding: 0; }
+  ul.sp-steps li { font-size: 12.5px; line-height: 1.55; padding-left: 20px; position: relative; margin-bottom: 3px; color: var(--text); }
+  ul.sp-steps li::before { content: '\2192'; position: absolute; left: 0; color: var(--text-faint); }
+  ol.sp-refs { margin: 0; padding-left: 18px; font-size: 12px; line-height: 1.55; }
+  ol.sp-refs li { margin-bottom: 4px; }
+  ol.sp-refs a { color: #1F6FB2; text-decoration: none; }
+  ol.sp-refs a:hover { text-decoration: underline; }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-thumb { background: #C5CDD8; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div>
+    <h1>Heat–Medication Risk Graph</h1>
+    <div class="sub">Keyword-detected intake · precomputed knowledge graph · deterministic traversal + scoring</div>
+  </div>
+  <div class="sub mono" id="statusLine">Paste intake text and run →</div>
+</header>
+
+<main class="page">
+  <!-- TOP: patient intake -->
+  <section class="card intake-card">
+    <div class="intake-head">
+      <h2 class="med-title">MEDICAL DETAILS</h2>
+      <div class="row">
+        <button class="btn primary" id="runBtn">Parse &amp; run</button>
+      </div>
+    </div>
+    <div class="editor">
+      <div class="editor-backdrop" id="intakeBackdrop" aria-hidden="true"></div>
+      <textarea id="intake" spellcheck="false" aria-label="Patient intake text"></textarea>
+    </div>
+  </section>
+
+  <div class="lower">
+    <!-- LEFT: knowledge graph -->
+    <section class="card graph-card">
+      <div class="pipeline" id="pipeline"></div>
+      <div class="graph-scroll">
+        <div class="graph-wrap" id="graphWrap">
+          <svg class="edges" id="edgeSvg"></svg>
+          <div class="columns" id="columns"></div>
+        </div>
+      </div>
+      <div id="nodeDetail"></div>
+    </section>
+
+    <!-- RIGHT: heat score + summary -->
+    <aside class="side">
+      <div id="scoreBox">
+        <div class="card"><div class="empty-hint">Run the intake parser to see the heat vulnerability score and summary here.</div></div>
+      </div>
+      <div id="summaryBox"></div>
+    </aside>
+  </div>
+</main>
+
+<script>
+/* ============================= KNOWLEDGE GRAPH (precomputed) ============================= */
+const NODES = {
+  // medications
+  med_lithium:        { category:'medication', label:'Lithium', desc:'Narrow therapeutic index — dehydration concentrates serum levels toward toxicity.', source:'CDC — Heat and Medications Guidance' },
+  med_antipsychotic:   { category:'medication', label:'Antipsychotics', desc:'Can interfere with hypothalamic temperature regulation.', source:'CDC — Heat and Medications Guidance' },
+  med_anticholinergic: { category:'medication', label:'Strong anticholinergics', desc:'Reduce the ability to sweat — the body\u2019s primary cooling mechanism.', source:'Lancet eClinicalMedicine meta-analysis (2024)' },
+  med_diuretic:        { category:'medication', label:'Diuretics', desc:'Promote fluid loss, compounding heat-driven dehydration.', source:'CDC — Heat and Medications Guidance' },
+  med_ssri:            { category:'medication', label:'SSRIs / SNRIs', desc:'Linked to altered thermoregulation.', source:'CDC — Heat and Medications Guidance' },
+  med_benzo:           { category:'medication', label:'Benzodiazepines / sedatives', desc:'Sedation can blunt behavioral recognition of overheating.', source:'CDC — Heat and Medications Guidance' },
+  med_ace_inhibitor:   { category:'medication', label:'ACE inhibitors', desc:'Blunt thirst sensation and lower blood pressure, raising dehydration and fall risk in heat.', source:'CDC — Heat and Medications Guidance' },
+  med_nsaid:           { category:'medication', label:'NSAIDs', desc:'Reduce renal blood flow; combined with dehydration this raises acute kidney injury risk.', source:'CDC — Heat and Medications Guidance' },
+
+  // comorbidities / risk factors
+  como_age:        { category:'comorbidity', label:'Age 65+', desc:'Reduced thirst sensation and physiological reserve blunt the body\u2019s heat response.', source:'CDC — Extreme Heat: Who\u2019s Most at Risk' },
+  como_renal:      { category:'comorbidity', label:'Chronic kidney disease', desc:'Reduced clearance raises risk of drug/electrolyte accumulation during dehydration.', source:'CDC — Extreme Heat: Who\u2019s Most at Risk' },
+  como_cvd:        { category:'comorbidity', label:'Heart failure / cardiovascular disease', desc:'Heat stress raises cardiac workload; existing disease lowers the safety margin.', source:'CDC — Extreme Heat: Who\u2019s Most at Risk' },
+  como_htn:        { category:'comorbidity', label:'Hypertension', desc:'Impairs the vasodilation response the body needs to shed heat.', source:'CDC — Extreme Heat: Who\u2019s Most at Risk' },
+  como_diabetes:   { category:'comorbidity', label:'Diabetes', desc:'Neuropathy and impaired sweat gland function reduce cooling capacity.', source:'CDC — Extreme Heat: Who\u2019s Most at Risk' },
+  como_copd:       { category:'comorbidity', label:'COPD / asthma', desc:'Existing lung disease lowers the safety margin against heat- and allergen-driven respiratory strain.', source:'CDC — Extreme Heat: Who\u2019s Most at Risk' },
+  como_obesity:    { category:'comorbidity', label:'Obesity', desc:'Impairs heat dissipation.', source:'CDC — Extreme Heat: Who\u2019s Most at Risk' },
+  como_mental:     { category:'comorbidity', label:'Mental illness / cognitive impairment', desc:'Can impair self-care and recognition of overheating symptoms.', source:'CDC — Extreme Heat: Who\u2019s Most at Risk' },
+  como_immobility: { category:'comorbidity', label:'Limited mobility', desc:'Reduced ability to self-evacuate a hot space or reach cooling resources.', source:'CDC — Extreme Heat: Who\u2019s Most at Risk' },
+  como_isolated:   { category:'comorbidity', label:'Lives alone / socially isolated', desc:'No one present to notice early symptoms.', source:'CDC Social Vulnerability Index' },
+
+  // climate (heat + pollen + duration)
+  heat_current:     { category:'heat',   label:'Current heat condition', desc:'Hot days and warm nights limit the body\u2019s ability to cool down and raise heat-illness risk.', source:'NWS / NOAA HeatRisk' },
+  pollen_current:   { category:'pollen', label:'Current pollen level', desc:'High pollen adds respiratory strain, especially alongside heat or existing lung disease.', source:'Manual input (no live feed wired in this demo)' },
+  climate_duration: { category:'heat',   label:'Multi-day heat exposure', desc:'Several hot days in a row leave less time to recover, so heat stress compounds.', source:'Forecast text' },
+
+  // mechanisms
+  mech_fluid:       { category:'mechanism', label:'Fluid & electrolyte shift', desc:'Dehydration concentrates certain drugs in the bloodstream.' },
+  mech_thermoreg:   { category:'mechanism', label:'Impaired thermoregulation', desc:'The hypothalamic cooling signal is blunted or delayed.' },
+  mech_sweat:       { category:'mechanism', label:'Impaired sweating', desc:'Evaporative cooling capacity is reduced.' },
+  mech_perception:  { category:'mechanism', label:'Reduced heat perception', desc:'Sedation delays recognizing and responding to overheating.' },
+  mech_hypotension: { category:'mechanism', label:'Reduced thirst / orthostatic risk', desc:'Blunted thirst response and lower blood pressure raise dehydration and fall risk.' },
+  mech_renal:       { category:'mechanism', label:'Reduced renal blood flow', desc:'Dehydration plus NSAID use raises acute kidney injury risk.' },
+  mech_airway:      { category:'mechanism', label:'Airway inflammation', desc:'Heat and allergens both add respiratory strain.' },
+
+  // outcomes (three scored dimensions)
+  out_heatillness: { category:'outcome', label:'Heat risk', desc:'Heat exhaustion / heat stroke risk.' },
+  out_toxicity:    { category:'outcome', label:'Drug toxicity risk', desc:'Elevated serum drug levels or kidney injury from dehydration.' },
+  out_pollen:      { category:'outcome', label:'Pollen risk', desc:'Respiratory strain from allergen exposure, compounded by heat.' },
+};
+
+const EDGES = [
+  { from:'med_lithium',         to:'mech_fluid',       w:1.7 },
+  { from:'med_diuretic',        to:'mech_fluid',       w:1.5 },
+  { from:'med_antipsychotic',   to:'mech_thermoreg',   w:1.6 },
+  { from:'med_anticholinergic', to:'mech_sweat',       w:1.7 },
+  { from:'med_ssri',            to:'mech_thermoreg',   w:1.3 },
+  { from:'med_benzo',           to:'mech_perception',  w:1.5 },
+  { from:'med_ace_inhibitor',   to:'mech_hypotension', w:1.4 },
+  { from:'med_nsaid',           to:'mech_renal',       w:1.5 },
+
+  { from:'como_copd', to:'mech_airway', w:1.6 },
+
+  { from:'mech_fluid',       to:'out_toxicity',    w:1.8 },
+  { from:'mech_fluid',       to:'out_heatillness', w:1.3 },
+  { from:'mech_thermoreg',   to:'out_heatillness', w:1.7 },
+  { from:'mech_sweat',       to:'out_heatillness', w:1.8 },
+  { from:'mech_perception',  to:'out_heatillness', w:1.4 },
+  { from:'mech_hypotension', to:'out_heatillness', w:1.3 },
+  { from:'mech_renal',       to:'out_toxicity',    w:1.5 },
+  { from:'mech_airway',      to:'out_pollen',      w:1.7 },
+  { from:'mech_airway',      to:'out_heatillness', w:1.2 },
+
+  { from:'como_age',        to:'out_heatillness', w:null }, // dynamic, age-scaled
+  { from:'como_age',        to:'out_toxicity',    w:null },
+  { from:'como_renal',      to:'out_toxicity',    w:1.5 },
+  { from:'como_cvd',        to:'out_heatillness', w:1.4 },
+  { from:'como_htn',        to:'out_heatillness', w:1.3 },
+  { from:'como_diabetes',   to:'out_heatillness', w:1.4 },
+  { from:'como_obesity',    to:'out_heatillness', w:1.2 },
+  { from:'como_mental',     to:'out_heatillness', w:1.3 },
+  { from:'como_immobility', to:'out_heatillness', w:1.3 },
+  { from:'como_isolated',   to:'out_heatillness', w:1.4 },
+
+  { from:'heat_current',     to:'out_heatillness', w:null }, // dynamic, level-scaled
+  { from:'heat_current',     to:'out_toxicity',    w:null },
+  { from:'climate_duration', to:'out_heatillness', w:null }, // dynamic, day-count-scaled
+  { from:'pollen_current',   to:'out_pollen',       w:null }, // dynamic, pollen-level-scaled
+];
+
+const HEAT_LEVELS = { none:1.0, advisory:1.2, warning:1.5, extreme:1.9 };
+const HEAT_LABELS = { none:'No advisory', advisory:'Heat Advisory', warning:'Excessive Heat Warning', extreme:'Extreme HeatRisk (Red)' };
+const POLLEN_LEVELS = { none:1.0, moderate:1.25, high:1.55, veryhigh:1.85 };
+const POLLEN_LABELS = { none:'No elevated pollen', moderate:'Moderate pollen', high:'High pollen', veryhigh:'Very high pollen' };
+
+// Fixed left-to-right order. Edge routing derives "column skip" from these indices.
+// Medications -> Mechanisms -> Outcome are contiguous, so the mechanism pathways are adjacent-column links;
+// comorbidities feed the outcome directly across two columns; climate sits last, next to the outcome.
+const COLUMNS = [
+  { key:'comorbidity', label:'COMORBIDITIES' },
+  { key:'medication',  label:'MEDICATIONS' },
+  { key:'mechanism',   label:'MECHANISMS' },
+  { key:'outcome',     label:'RISK OUTCOME' },
+  { key:'clim',        label:'CLIMATE CONDITION' }, // heat + pollen + duration, handled specially
+];
+
+const FLAG_THRESHOLD = 70;          // flag the patient when the heat vulnerability score exceeds this (%)
+const DEFAULT_POLLEN_KEY = 'none';  // no pollen input in this demo (no live feed wired)
+
+const TIER_THRESHOLDS = [
+  { max: 25,  label:'LOW',      color:'var(--tier-low)' },
+  { max: 50,  label:'MODERATE', color:'var(--tier-moderate)' },
+  { max: 75,  label:'HIGH',     color:'var(--tier-high)' },
+  { max: 999, label:'CRITICAL', color:'var(--tier-critical)' },
+];
+function tierFor(score) { return TIER_THRESHOLDS.find(t => score <= t.max); }
+// Additive, like Charlson / CHA2DS2-VASc: each edge on a path adds (weight - 1) * POINTS_PER_WEIGHT points, then a sigmoid maps the sum to a percentage.
+// Weights are expert-judgment risk multipliers, not statistically fitted to outcome data.
+const POINTS_PER_WEIGHT = 15;
+function edgePoints(weight) { return (weight - 1) * POINTS_PER_WEIGHT; }
+// Points are converted to a 0-100% risk index with a logistic (sigmoid) curve: 100 / (1 + e^(-k * (points - midpoint))).
+// 50 points = 50%; the curve flattens at both ends so a few risk factors don't jump straight to 100%.
+const SIGMOID_MIDPOINT = 50;
+const SIGMOID_STEEPNESS = 0.08;
+function sigmoidPercent(points) { return 100 / (1 + Math.exp(-SIGMOID_STEEPNESS * (points - SIGMOID_MIDPOINT))); }
+function scoreFromPoints(points) { return Math.round(sigmoidPercent(points)); }
+function ageWeight(age) { return Math.max(1.05, Math.min(1.6, 1.05 + (age - 65) * 0.018)); }
+
+/* ============================= KEYWORD DICTIONARY ============================= */
+const MED_DICT = [
+  { id:'med_lithium',         aliases:['lithium'] },
+  { id:'med_antipsychotic',   aliases:['antipsychotic','haloperidol','clozapine','risperidone','olanzapine','quetiapine'] },
+  { id:'med_anticholinergic', aliases:['anticholinergic','diphenhydramine','oxybutynin','amitriptyline','benztropine'] },
+  { id:'med_diuretic',        aliases:['diuretic','furosemide','lasix','hydrochlorothiazide','hctz','spironolactone'] },
+  { id:'med_ssri',            aliases:['ssri','snri','sertraline','fluoxetine','escitalopram','venlafaxine','citalopram'] },
+  { id:'med_benzo',           aliases:['benzodiazepine','sedative','lorazepam','diazepam','alprazolam','clonazepam'] },
+  { id:'med_ace_inhibitor',   aliases:['ace inhibitor','lisinopril','enalapril','ramipril','captopril'] },
+  { id:'med_nsaid',           aliases:['nsaid','ibuprofen','naproxen','diclofenac','aspirin high dose'] },
+];
+const COMO_DICT = [
+  { id:'como_renal',      aliases:['chronic kidney disease','kidney disease','ckd','renal impairment','renal disease'] },
+  { id:'como_cvd',         aliases:['congestive heart failure','heart failure','cardiovascular disease','coronary artery disease','chf','cad'] },
+  { id:'como_htn',         aliases:['hypertension','high blood pressure'] },
+  { id:'como_diabetes',    aliases:['diabetes','diabetic','type 2 diabetes','type 1 diabetes'] },
+  { id:'como_copd',        aliases:['copd','asthma','chronic obstructive pulmonary disease','respiratory disease'] },
+  { id:'como_obesity',     aliases:['obesity','obese'] },
+  { id:'como_mental',      aliases:['mental illness','psychiatric','schizophrenia','dementia','cognitive impairment','bipolar','depression'] },
+  { id:'como_immobility',  aliases:['limited mobility','immobility','immobile','bedridden','wheelchair'] },
+  { id:'como_isolated',    aliases:['lives alone','isolated','isolation','no ac','no air conditioning','no air condition'] },
+];
+
+/* ============================= INTAKE PARSER ============================= */
+const EXAMPLE_TEXT = `* AGE: 82 years
+* MEDICAL CONDITIONS: Congestive heart failure, Hypertension, Mild chronic kidney disease
+* ADDITIONAL FACTORS: Limited mobility
+* DRUGS TAKEN WITH DOSE:
+   * Furosemide - 40 mg once daily - diuretic - electrolyte imbalance, dehydration and increased risk of fainting and falls, reduced thirst sensation
+   * Lisinopril - ACE inhibitor - decreased blood pressure, increased risk of fainting, reduced thirst sensation
+   * Ibuprofen - NSAID - kidney injury with dehydration
+
+FORECAST
+
+* In 4 days, there will be 3 consecutive days in the upcoming week with HeatRisk Red warning (extreme heat, high temperatures persist at night)`;
+
+// Forecast keywords, checked in this order (first tier with a hit wins). Shared by the parser and the intake highlighter.
+const HEAT_KEYWORDS = {
+  extreme:  ['red', 'extreme', 'magenta'],
+  warning:  ['orange', 'major', 'excessive heat warning'],
+  advisory: ['yellow', 'moderate', 'heat advisory'],
+};
+
+function matchDict(text, dict) {
+  const lower = text.toLowerCase();
+  for (const entry of dict) {
+    for (const alias of entry.aliases) {
+      if (lower.includes(alias)) return entry.id;
+    }
+  }
+  return null;
+}
+
+// "Furosemide - 40 mg once daily - diuretic - ..." -> "furosemide"; falls back to the drug class label
+function drugName(line, id) {
+  const first = line.split(/\s+[-–—]\s+|,|\(/)[0].replace(/\s+\d.*$/, '').trim().toLowerCase(); // drop any trailing dose
+  return first && first.length <= 30 ? first : NODES[id].label.toLowerCase();
+}
+
+function parseIntake(text) {
+  const result = { age:null, meds:[], comorbidities:[], medNames:[], heatKey:'none', pollenKey: DEFAULT_POLLEN_KEY, consecutiveDays:0, patientLabel:'This patient' };
+
+  const ageMatch = text.match(/AGE\s*:?\s*(\d{1,3})/i) || text.match(/(\d{2,3})\s*[- ]?years?\s*(old)?/i);
+  if (ageMatch) result.age = parseInt(ageMatch[1], 10);
+  if (result.age !== null && result.age >= 65 && !result.comorbidities.includes('como_age')) {
+    result.comorbidities.push('como_age');
+  }
+
+  const condMatch = text.match(/MEDICAL CONDITIONS\s*:?\s*(.+)/i);
+  const factorMatch = text.match(/ADDITIONAL FACTORS\s*:?\s*(.+)/i);
+  const condText = [condMatch ? condMatch[1] : '', factorMatch ? factorMatch[1] : ''].join(', ');
+  condText.split(',').map(s => s.trim()).filter(Boolean).forEach(phrase => {
+    const id = matchDict(phrase, COMO_DICT);
+    if (id && !result.comorbidities.includes(id)) result.comorbidities.push(id);
+  });
+
+  const drugSection = text.split(/FORECAST/i)[0];
+  const drugLines = drugSection.split('\n').filter(l => /^\s*[\*\-]/.test(l) && !/DRUGS TAKEN/i.test(l));
+  drugLines.forEach(line => {
+    const clean = line.replace(/^\s*[\*\-]\s*/, '').trim();
+    if (!clean) return;
+    const id = matchDict(clean, MED_DICT);
+    if (id) {
+      if (!result.meds.includes(id)) result.meds.push(id);
+      const name = drugName(clean, id);
+      if (!result.medNames.includes(name)) result.medNames.push(name);
+    }
+  });
+
+  const forecastSection = (text.split(/FORECAST/i)[1] || text).toLowerCase();
+  for (const key of ['extreme', 'warning', 'advisory']) {
+    if (HEAT_KEYWORDS[key].some(k => forecastSection.includes(k))) { result.heatKey = key; break; }
+  }
+
+  const dayMatch = forecastSection.match(/(\d+)\s*consecutive\s*days?/i);
+  if (dayMatch) result.consecutiveDays = parseInt(dayMatch[1], 10);
+
+  return result;
+}
+
+/* ============================= INTAKE KEYWORD HIGHLIGHTING ============================= */
+const escapeRegex = str => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const escapeHtml = str => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const wordRegex = words => new RegExp('\\b(?:' + [...words].sort((a, b) => b.length - a.length).map(escapeRegex).join('|') + ')\\b', 'gi');
+
+const HL_MED_RE    = wordRegex(MED_DICT.flatMap(d => d.aliases));
+const HL_COMO_RE   = wordRegex(COMO_DICT.flatMap(d => d.aliases));
+const HL_HEAT_RE   = new RegExp('\\b(?:\\d+\\s*consecutive\\s*days?|' + Object.values(HEAT_KEYWORDS).flat().sort((a, b) => b.length - a.length).map(escapeRegex).join('|') + ')\\b', 'gi');
+const HL_AGE_RE    = /AGE\s*:?\s*(\d{1,3})|(\d{2,3})\s*[- ]?years?/gi;
+
+// Mirrors the parser's scope: drugs/conditions are read before "FORECAST", heat words after it.
+function findHighlights(text) {
+  const fc = text.search(/FORECAST/i);
+  const forecastStart = fc === -1 ? 0 : fc;
+  const hits = [];
+  const collect = (re, cls, from, to, keep) => {
+    re.lastIndex = from;
+    let m;
+    while ((m = re.exec(text)) && m.index < to) {
+      if (!keep || keep(m)) hits.push({ start: m.index, end: m.index + m[0].length, cls });
+      if (m[0].length === 0) re.lastIndex++;
+    }
+  };
+  if (fc !== -1) {
+    collect(HL_MED_RE, 'medication', 0, fc);
+    collect(HL_COMO_RE, 'comorbidity', 0, fc);
+    collect(HL_AGE_RE, 'comorbidity', 0, fc, m => parseInt(m[1] || m[2], 10) >= 65);
+  } else {
+    collect(HL_MED_RE, 'medication', 0, text.length);
+    collect(HL_COMO_RE, 'comorbidity', 0, text.length);
+    collect(HL_AGE_RE, 'comorbidity', 0, text.length, m => parseInt(m[1] || m[2], 10) >= 65);
+  }
+  collect(HL_HEAT_RE, 'heat', fc === -1 ? 0 : fc + 'FORECAST'.length, text.length);
+
+  // longest-first, drop overlaps
+  hits.sort((a, b) => a.start - b.start || (b.end - b.start) - (a.end - a.start));
+  const out = [];
+  let lastEnd = 0;
+  for (const h of hits) { if (h.start >= lastEnd) { out.push(h); lastEnd = h.end; } }
+  return out;
+}
+
+function buildHighlightHtml(text) {
+  let html = '', pos = 0, n = 0;
+  for (const h of findHighlights(text)) {
+    html += escapeHtml(text.slice(pos, h.start)) + `<mark class="hl-${h.cls}" style="--i:${Math.min(n++, 14)}">${escapeHtml(text.slice(h.start, h.end))}</mark>`;
+    pos = h.end;
+  }
+  html += escapeHtml(text.slice(pos));
+  return text.endsWith('\n') ? html + ' ' : html; // keep a trailing blank line the same height as in the textarea
+}
+
+const INTAKE_MAX_HEIGHT = 520;
+
+// auto-fit the box to its text so nothing (e.g. the forecast) is hidden below the fold
+function fitIntake() {
+  const ta = document.getElementById('intake');
+  ta.style.height = 'auto';
+  ta.style.height = Math.min(Math.max(ta.scrollHeight + 2, 250), INTAKE_MAX_HEIGHT) + 'px';
+}
+
+// Keywords are highlighted only when Parse is pressed; editing the text clears them (their positions would be stale).
+function paintHighlights() {
+  const ta = document.getElementById('intake'), bd = document.getElementById('intakeBackdrop');
+  bd.innerHTML = buildHighlightHtml(ta.value);
+  bd.scrollTop = ta.scrollTop;
+}
+function clearHighlights() { document.getElementById('intakeBackdrop').innerHTML = ''; }
+
+/* ============================= TRAVERSAL + SEVERITY ============================= */
+function effectiveWeight(edge, parsed) {
+  if (edge.w !== null) return edge.w;
+  if (edge.from === 'como_age') return ageWeight(parsed.age || 65);
+  if (edge.from === 'heat_current') return HEAT_LEVELS[parsed.heatKey];
+  if (edge.from === 'pollen_current') return POLLEN_LEVELS[parsed.pollenKey];
+  if (edge.from === 'climate_duration') return 1 + Math.min(0.05 * parsed.consecutiveDays, 0.3);
+  return 1.0;
+}
+
+function runTraversal(parsed) {
+  const activeStart = new Set([...parsed.meds, ...parsed.comorbidities, 'heat_current', 'pollen_current']);
+  if (parsed.consecutiveDays >= 2) activeStart.add('climate_duration');
+
+  const activeNodes = new Set(activeStart);
+  const activeEdgeIdx = new Set();
+  const reachedMechanisms = new Set();
+
+  EDGES.forEach((e, i) => {
+    const fromCat = NODES[e.from].category;
+    if (activeStart.has(e.from) && (fromCat === 'medication' || fromCat === 'comorbidity') && NODES[e.to].category === 'mechanism') {
+      activeEdgeIdx.add(i); activeNodes.add(e.to); reachedMechanisms.add(e.to);
+    }
+  });
+
+  const outcomeContribEdges = {};
+  const addContrib = (outId, i) => { (outcomeContribEdges[outId] = outcomeContribEdges[outId] || new Set()).add(i); };
+  EDGES.forEach((e, i) => {
+    const fromActive = reachedMechanisms.has(e.from) ||
+      (activeStart.has(e.from) && ['comorbidity','heat','pollen'].includes(NODES[e.from].category));
+    if (fromActive && NODES[e.to].category === 'outcome') {
+      activeEdgeIdx.add(i); activeNodes.add(e.to);
+      addContrib(e.to, i);
+      // the edges that got us to this mechanism count toward the outcome too
+      if (reachedMechanisms.has(e.from)) EDGES.forEach((up, j) => { if (up.to === e.from && activeEdgeIdx.has(j)) addContrib(e.to, j); });
+    }
+  });
+
+  const severities = {};
+  Object.keys(outcomeContribEdges).forEach(outId => {
+    const edgeIdxs = [...outcomeContribEdges[outId]];
+    const points = edgeIdxs.reduce((sum, i) => sum + edgePoints(effectiveWeight(EDGES[i], parsed)), 0);
+    severities[outId] = { points, score: scoreFromPoints(points), edgeIdxs };
+  });
+
+  return { activeNodes, activeEdgeIdx, severities, reachedMechanisms };
+}
+
+/* ============================= RENDER: SHELL ============================= */
+function renderColumns() {
+  const wrap = document.getElementById('columns');
+  wrap.innerHTML = COLUMNS.map(col => {
+    let nodeIds;
+    if (col.key === 'clim') nodeIds = ['heat_current', 'pollen_current', 'climate_duration'];
+    else nodeIds = Object.keys(NODES).filter(id => NODES[id].category === col.key);
+    const nodesHtml = nodeIds.map(id => `<div class="node" data-id="${id}" data-cat="${NODES[id].category}" tabindex="0" role="button"><span class="node-label">${NODES[id].label}</span></div>`).join('');
+    return `<div class="col"><div class="col-label">${col.label}</div>${nodesHtml}</div>`;
+  }).join('');
+}
+
+function renderPipeline(activeStep) {
+  const steps = ['Parse intake', 'Traverse subgraph', 'Score outcomes', 'Fill context window', 'LLM hand-off'];
+  const el = document.getElementById('pipeline');
+  el.innerHTML = steps.map((s, i) => {
+    const cls = i < activeStep ? 'done' : (i === activeStep ? 'active' : '');
+    const mark = i < activeStep ? '✓' : (i + 1);
+    return `<div class="step ${cls}"><span class="num">${mark}</span><span>${s}</span></div>` +
+      (i < steps.length - 1 ? `<div class="rule"></div>` : '');
+  }).join('');
+}
+
+/* ============================= GRAPH EDGE ROUTING ============================= */
+// An edge's "skip" is the difference between its endpoints' column indices (COLUMNS order).
+//  - skip 1 (adjacent columns): one simple cubic bezier; nothing sits between the two columns.
+//  - skip >= 2: routed through a bus lane reserved ABOVE all columns, as three cubic segments
+//    (up-and-out of the source, across the lane, down-and-in to the target). The risers run in the
+//    gutters between columns and the horizontal run is above every node, so the path never crosses a
+//    node of an intermediate column.
+// Each bus edge gets its own track (rank) so they read as parallel lines. Ranking by source height,
+// topmost source -> topmost lane track & leftmost riser (mirrored at the target) keeps the tracks from crossing each other.
+const LANE_TOP = 8;           // y of the first lane track, from the top of the graph area (11 tracks today; .graph-wrap padding-top must clear the last one)
+const LANE_STEP = 4;          // vertical spacing between parallel lane tracks
+const RISER_STEP = 2.5;       // horizontal spacing between the parallel risers in a gutter
+const LANE_LABEL_ZONE = 30;   // gutter space right after the source node, kept clear for the points label
+const LANE_RADIUS = 5;        // rounding where a riser meets the lane
+const LANE_TARGET_MARGIN = 6; // gap between the last riser and the target column
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+function columnIndexOf(nodeId) {
+  const cat = NODES[nodeId].category;
+  const key = (cat === 'heat' || cat === 'pollen') ? 'clim' : cat;
+  return COLUMNS.findIndex(c => c.key === key);
+}
+
+const REDUCED_MOTION = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+const ms = n => (REDUCED_MOTION ? 0 : n);
+const sleep = n => new Promise(resolve => setTimeout(resolve, n));
+
+// What is lit up for the current run. Kept so a resize/font-load redraw can restore it without replaying the animation.
+let graphState = { litNodes: new Set(), litEdges: new Set(), parsed: null };
+const edgeGeom = {};   // edge index -> { d, isBus }, filled by drawAllEdgesBase()
+let edgeDefs = null;
+
+function drawAllEdgesBase() {
+  const svg = document.getElementById('edgeSvg');
+  const wrap = document.getElementById('graphWrap');
+  const wr = wrap.getBoundingClientRect();
+  svg.setAttribute('width', wr.width);
+  svg.setAttribute('height', wr.height);
+  svg.innerHTML = '';
+  edgeDefs = document.createElementNS(SVG_NS, 'defs');
+  svg.appendChild(edgeDefs);
+  Object.keys(edgeGeom).forEach(k => delete edgeGeom[k]);
+
+  const cols = [...document.querySelectorAll('#columns .col')].map(el => { const r = el.getBoundingClientRect(); return { l: r.left - wr.left, r: r.right - wr.left }; });
+  const box = id => {
+    const el = document.querySelector(`.node[data-id="${id}"]`);
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { l: r.left - wr.left, r: r.right - wr.left, h: r.height, cy: r.top - wr.top + r.height / 2 };
+  };
+
+  // 1. classify every drawable edge by column skip
+  const items = [];
+  EDGES.forEach((edge, i) => {
+    const a = box(edge.from), b = box(edge.to);
+    if (!a || !b) return;
+    const ca = columnIndexOf(edge.from), cb = columnIndexOf(edge.to);
+    items.push({ i, edge, a, b, dir: cb > ca ? 1 : -1, skip: Math.abs(cb - ca) });
+  });
+  const bus = items.filter(it => it.skip >= 2).sort((p, q) => p.a.cy - q.a.cy || p.b.cy - q.b.cy || p.i - q.i);
+  bus.forEach((it, rank) => { it.rank = rank; });
+
+  // shrink the track spacing if the gutters get narrow
+  let minGutter = Infinity;
+  for (let k = 0; k < cols.length - 1; k++) minGutter = Math.min(minGutter, cols[k + 1].l - cols[k].r);
+  const avail = minGutter - LANE_LABEL_ZONE - LANE_RADIUS - LANE_TARGET_MARGIN;
+  const riserStep = bus.length > 1 ? Math.max(1, Math.min(RISER_STEP, avail / (bus.length - 1))) : RISER_STEP;
+
+  // 2. spread the arrival points on a target node (bus edges land on top, then the direct links by source height)
+  const groups = {};
+  items.forEach(it => { (groups[it.edge.to + '|' + it.dir] = groups[it.edge.to + '|' + it.dir] || []).push(it); });
+  Object.values(groups).forEach(g => {
+    g.sort((p, q) => ((q.skip >= 2) - (p.skip >= 2)) || (p.skip >= 2 ? p.rank - q.rank : p.a.cy - q.a.cy));
+    const n = g.length;
+    const gap = n > 1 ? Math.min(3, (g[0].b.h - 10) / (n - 1)) : 0;
+    g.forEach((it, k) => { it.arriveY = it.b.cy + (k - (n - 1) / 2) * gap; });
+  });
+
+  // 3. draw
+  items.forEach(it => {
+    const { i, a, b, dir } = it;
+    const isBus = it.skip >= 2;
+    const x1 = dir === 1 ? a.r : a.l, y1 = a.cy;
+    const x2 = dir === 1 ? b.l : b.r, y2 = it.arriveY;
+    let d, lx, ly, anchor = 'middle';
+    if (!isBus) {
+      const mx = (x1 + x2) / 2;
+      d = `M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`;
+      lx = mx; ly = (y1 + y2) / 2 - 4;
+    } else {
+      const laneY = LANE_TOP + it.rank * LANE_STEP;
+      const gx = x1 + dir * (LANE_LABEL_ZONE + it.rank * riserStep);        // riser leaving the source side
+      const dx = x2 - dir * (LANE_TARGET_MARGIN + it.rank * riserStep);     // riser entering the target side
+      const e1 = gx + dir * LANE_RADIUS, e2 = dx - dir * LANE_RADIUS;
+      const m1 = e1 + (e2 - e1) / 3, m2 = e1 + 2 * (e2 - e1) / 3;
+      d = `M ${x1} ${y1} C ${gx} ${y1}, ${gx} ${laneY}, ${e1} ${laneY} ` +   // up-and-out
+          `C ${m1} ${laneY}, ${m2} ${laneY}, ${e2} ${laneY} ` +              // across the lane
+          `C ${dx} ${laneY}, ${dx} ${y2}, ${x2} ${y2}`;                       // down-and-in
+      lx = x1 + dir * 4; ly = y1 - 3; anchor = dir === 1 ? 'start' : 'end';
+    }
+    edgeGeom[i] = { d, isBus };
+    const path = document.createElementNS(SVG_NS, 'path');
+    path.setAttribute('d', d);
+    path.setAttribute('class', 'edge-line' + (isBus ? ' bus' : ''));
+    path.setAttribute('id', `edge-${i}`);
+    if (isBus) path.setAttribute('stroke-dashoffset', (it.rank * 3) % 9); // stagger the dashes so parallel tracks don't line up into a solid bar
+    svg.appendChild(path);
+    const label = document.createElementNS(SVG_NS, 'text');
+    label.setAttribute('x', lx); label.setAttribute('y', ly);
+    label.setAttribute('text-anchor', anchor); label.setAttribute('class', 'edge-weight'); label.setAttribute('id', `edge-label-${i}`);
+    svg.appendChild(label);
+  });
+}
+
+function catColorVar(cat) {
+  return { medication:'--c-medication', comorbidity:'--c-comorbidity', heat:'--c-heat', pollen:'--c-pollen', mechanism:'--c-mechanism', outcome:'--c-outcome' }[cat];
+}
+
+function redrawGraph() {
+  drawAllEdgesBase();
+  [...graphState.litEdges].forEach(i => showEdge(i, { animate: false }));
+}
+
+function resetGraph() {
+  graphState = { litNodes: new Set(), litEdges: new Set(), parsed: null };
+  document.querySelectorAll('.node').forEach(el => el.classList.remove('active', 'pop'));
+  redrawGraph();
+}
+
+// Set the dynamic climate labels first: they can change node heights, so the edges are measured after.
+function prepareGraph(parsed) {
+  graphState.parsed = parsed;
+  document.querySelector('.node[data-id="heat_current"] .node-label').textContent = 'Heat: ' + HEAT_LABELS[parsed.heatKey];
+  document.querySelector('.node[data-id="pollen_current"] .node-label').textContent = 'Pollen: ' + POLLEN_LABELS[parsed.pollenKey];
+  document.querySelector('.node[data-id="climate_duration"] .node-label').textContent = parsed.consecutiveDays >= 2
+    ? `${parsed.consecutiveDays} consecutive heat days` : 'Multi-day heat exposure';
+  redrawGraph();
+}
+
+function lightNode(id) {
+  const el = document.querySelector(`.node[data-id="${id}"]`);
+  if (!el) return;
+  graphState.litNodes.add(id);
+  if (el.classList.contains('active')) return;
+  el.classList.add('active', 'pop');
+  setTimeout(() => el.classList.remove('pop'), 600);
+}
+
+// Lights an edge: a coloured copy of the path is drawn over the grey one. Animated, it is revealed from source to
+// target by a mask whose stroke draws in (so dashed bus-lane edges reveal dash by dash). Label shows its points.
+function showEdge(i, { animate = false, duration = 450, onDone } = {}) {
+  const geom = edgeGeom[i], base = document.getElementById(`edge-${i}`);
+  if (!geom || !base) { if (onDone) onDone(); return; }
+  graphState.litEdges.add(i);
+  ['edge-hot-', 'edge-mask-'].forEach(prefix => { const old = document.getElementById(prefix + i); if (old) old.remove(); });
+
+  const hot = document.createElementNS(SVG_NS, 'path');
+  hot.setAttribute('d', geom.d);
+  hot.setAttribute('id', `edge-hot-${i}`);
+  hot.setAttribute('class', 'edge-hot' + (geom.isBus ? ' bus' : ''));
+  hot.style.stroke = `var(${catColorVar(NODES[EDGES[i].from].category)})`;
+  base.parentNode.insertBefore(hot, base.nextSibling);
+
+  const label = document.getElementById(`edge-label-${i}`);
+  const finish = () => {
+    hot.removeAttribute('mask');
+    const m = document.getElementById(`edge-mask-${i}`); if (m) m.remove();
+    if (label && graphState.parsed) {
+      label.textContent = '+' + edgePoints(effectiveWeight(EDGES[i], graphState.parsed)).toFixed(1);
+      label.classList.add('active');
+    }
+    if (onDone) onDone();
+  };
+
+  if (!animate || duration <= 0) { finish(); return; }
+
+  const svg = document.getElementById('edgeSvg');
+  const mask = document.createElementNS(SVG_NS, 'mask');
+  mask.setAttribute('id', `edge-mask-${i}`);
+  mask.setAttribute('maskUnits', 'userSpaceOnUse'); // the default (bounding box) collapses for straight paths
+  mask.setAttribute('x', -20); mask.setAttribute('y', -20);
+  mask.setAttribute('width', parseFloat(svg.getAttribute('width')) + 40); mask.setAttribute('height', parseFloat(svg.getAttribute('height')) + 40);
+  const mp = document.createElementNS(SVG_NS, 'path');
+  mp.setAttribute('d', geom.d); mp.setAttribute('fill', 'none'); mp.setAttribute('stroke', '#fff'); mp.setAttribute('stroke-width', 10);
+  mask.appendChild(mp);
+  edgeDefs.appendChild(mask);
+  const len = mp.getTotalLength();
+  mp.style.strokeDasharray = `${len} ${len}`;
+  mp.style.strokeDashoffset = len;
+  hot.setAttribute('mask', `url(#edge-mask-${i})`);
+  getComputedStyle(mp).strokeDashoffset; // flush styles so the transition starts from "hidden"
+  mp.style.transition = `stroke-dashoffset ${duration}ms ease-in-out`;
+  mp.style.strokeDashoffset = 0;
+  setTimeout(finish, duration + 40);
+}
+
+// The traversal, one step at a time: start nodes light up, edges draw into the mechanisms (which light as the edge
+// arrives), then edges draw into the outcomes. Resolves false if a newer run cancelled this one.
+async function animateTraversal(parsed, result, stale) {
+  const startIds = [...parsed.comorbidities, ...parsed.meds, 'heat_current', 'pollen_current', ...(parsed.consecutiveDays >= 2 ? ['climate_duration'] : [])];
+  for (const id of startIds) { lightNode(id); await sleep(ms(80)); if (stale()) return false; }
+  await sleep(ms(250)); if (stale()) return false;
+
+  const idxs = [...result.activeEdgeIdx].sort((a, b) => a - b);
+  const stages = [
+    { edges: idxs.filter(i => NODES[EDGES[i].to].category === 'mechanism'), gap: 130 },
+    { edges: idxs.filter(i => NODES[EDGES[i].to].category === 'outcome'),   gap: 85 },
+  ];
+  for (const stage of stages) {
+    for (const i of stage.edges) {
+      showEdge(i, { animate: true, duration: ms(450), onDone: () => lightNode(EDGES[i].to) });
+      await sleep(ms(stage.gap)); if (stale()) return false;
+    }
+    await sleep(ms(520)); if (stale()) return false;
+  }
+  return true;
+}
+
+/* ============================= NODE SUMMARIES (click a node) ============================= */
+// Placeholder: in this demo every reference link points at the same page.
+const PLACEHOLDER_REF_URL = 'https://www.cdc.gov/heat-health/hcp/clinical-overview/heat-and-people-with-cardiovascular-disease.html';
+const REF = `<a class="ref-link" href="${PLACEHOLDER_REF_URL}" target="_blank" rel="noopener noreferrer">[ref link]</a>`;
+
+const NODE_NOTICE = {
+  medication:  'Worth a clinician’s review whenever hot weather is forecast.',
+  comorbidity: 'Adds to overall heat vulnerability when combined with medications and hot weather.',
+  heat:        'Feeds directly into the heat vulnerability score.',
+  pollen:      'Feeds directly into the pollen risk outcome.',
+  mechanism:   'Reached through the flagged medications or conditions in the graph.',
+  outcome:     'One of the risk outcomes the graph scores.',
+};
+
+// Two short sentences, each followed by the reference: "Something to notice [ref link] the takeaway [ref link]".
+function nodeSummaryHtml(id) {
+  const n = NODES[id];
+  return `${escapeHtml(n.desc || n.label)} ${REF} ${NODE_NOTICE[n.category]} ${REF}`;
+}
+
+let selectedNodeId = null;
+
+function renderNodeDetail() {
+  const box = document.getElementById('nodeDetail');
+  if (!box) return;
+  if (!selectedNodeId) {
+    box.innerHTML = '<div class="nd-hint">Click any node in the graph for a short summary and reference.</div>';
+    return;
+  }
+  const n = NODES[selectedNodeId];
+  const labelEl = document.querySelector(`.node[data-id="${selectedNodeId}"] .node-label`);
+  const label = labelEl ? labelEl.textContent : n.label;
+  const color = `var(${catColorVar(n.category)})`;
+  box.innerHTML = `<div class="node-detail" style="border-left-color:${color}">
+      <div class="nd-cat" style="color:${color}">${n.category} · node summary</div>
+      <div class="nd-label">${escapeHtml(label)}</div>
+      <div class="nd-text">${nodeSummaryHtml(selectedNodeId)}</div>
+    </div>`;
+}
+
+function selectNode(id) {
+  selectedNodeId = selectedNodeId === id ? null : id;
+  document.querySelectorAll('.node').forEach(el => el.classList.toggle('selected', el.dataset.id === selectedNodeId));
+  renderNodeDetail();
+  if (selectedNodeId) document.getElementById('nodeDetail').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+/* ============================= SCORE + SUMMARY (right side) ============================= */
+// What each detected medication class can do in the heat (feeds the summary sentence).
+const MED_EFFECTS = {
+  med_lithium:         ['electrolyte imbalance'],
+  med_antipsychotic:   ['impaired temperature regulation'],
+  med_anticholinergic: ['reduced sweating'],
+  med_diuretic:        ['dehydration', 'electrolyte imbalance'],
+  med_ssri:            ['impaired temperature regulation'],
+  med_benzo:           ['reduced awareness of overheating'],
+  med_ace_inhibitor:   ['blood-pressure changes', 'falls'],
+  med_nsaid:           ['kidney stress'],
+};
+// The summary names the most heat-relevant condition group first found in this order.
+const CONDITION_GROUPS = [
+  { ids: ['como_cvd', 'como_htn'], phrase: 'cardiovascular conditions' },
+  { ids: ['como_diabetes'],        phrase: 'diabetes' },
+  { ids: ['como_copd'],            phrase: 'respiratory conditions' },
+  { ids: ['como_renal'],           phrase: 'kidney disease' },
+  { ids: ['como_mental'],          phrase: 'cognitive or mental health conditions' },
+  { ids: ['como_obesity'],         phrase: 'obesity' },
+  { ids: ['como_immobility'],      phrase: 'limited mobility' },
+  { ids: ['como_isolated'],        phrase: 'living alone' },
+  { ids: ['como_age'],             phrase: 'advanced age' },
+];
+const HEAT_PHRASES = { extreme: 'extreme heat', warning: 'excessive heat', advisory: 'heat advisory conditions', none: 'hot weather' };
+const TIER_WORD = { LOW: 'low', MODERATE: 'moderate', HIGH: 'elevated', CRITICAL: 'very high' };
+
+function joinList(items) {
+  if (items.length <= 1) return items.join('');
+  if (items.length === 2) return items.join(' and ');
+  return items.slice(0, -1).join(', ') + ', and ' + items[items.length - 1];
+}
+
+// Demo stand-in for the LLM output: templated from the parsed intake, no model call. Returns HTML.
+// A [ref link] follows each statement of medical knowledge.
+function buildSummaryHtml(parsed, result) {
+  const sev = result.severities['out_heatillness'];
+  const tier = tierFor(sev ? sev.score : 0).label;
+  const heatWord = HEAT_PHRASES[parsed.heatKey];
+  const prolonged = parsed.consecutiveDays >= 2 && parsed.heatKey !== 'none';
+
+  const group = CONDITION_GROUPS.find(g => g.ids.some(id => parsed.comorbidities.includes(id)));
+  const effects = [];
+  parsed.meds.forEach(id => (MED_EFFECTS[id] || []).forEach(e => { if (!effects.includes(e)) effects.push(e); }));
+  if (effects.includes('falls')) { effects.splice(effects.indexOf('falls'), 1); effects.push('falls'); } // keep "falls" last
+  const names = joinList(parsed.medNames.map(escapeHtml));
+
+  let s1, s2;
+  const forecast = parsed.heatKey === 'none'
+    ? 'no heat advisory in the forecast'
+    : `${prolonged ? 'prolonged ' : ''}${heatWord} forecast${prolonged ? ' over the coming days' : ''}`;
+  if (group || parsed.meds.length) {
+    // "lead" ends right where "may" begins (with a trailing dash or space)
+    const lead = group && parsed.meds.length ? `${group.phrase} and medications—${names}—`
+               : parsed.meds.length ? `medications—${names}—`
+               : `${group.phrase} `;
+    const outcomes = effects.length ? joinList(effects) : 'heat-related illness';
+    s1 = `The patient’s ${lead}may increase vulnerability to ${outcomes} during ${heatWord}.`;
+    const opener = parsed.heatKey === 'none' ? 'With' : 'Combined with';
+    s2 = `${opener} ${forecast}, these factors indicate ${TIER_WORD[tier]} heat vulnerability` +
+         (tier === 'LOW' ? '.' : ' and warrant careful monitoring and clinical review if concerns arise.');
+  } else {
+    s1 = 'No heat-sensitive medications or conditions were detected in the intake.';
+    s2 = `With ${forecast}, heat vulnerability is ${TIER_WORD[tier]}.`;
+  }
+
+  return `
+    <p class="sp-text">${s1} ${REF} ${s2} ${REF}</p>
+    <div class="sp-head">RECOMMENDED WORKFLOW</div>
+    <div class="sp-sub">Check before and during the heat event:</div>
+    <ul class="sp-steps">
+      <li>Resident is in a cool environment</li>
+      <li>Check hydration/access to fluids ${REF}</li>
+      <li>Check for changes in condition or heat-related symptoms</li>
+      <li>Monitor for dizziness, weakness, confusion, reduced urination, or other concerning changes ${REF}</li>
+    </ul>
+    <div class="sp-sub">If concerns are identified:</div>
+    <ul class="sp-steps">
+      <li>Contact the nurse/ pharmacist/ clinician according to facility protocol for individualized guidance</li>
+    </ul>
+    <div class="sp-head">REFERENCE</div>
+    <ol class="sp-refs">
+      <li><a href="${PLACEHOLDER_REF_URL}" target="_blank" rel="noopener noreferrer">CDC – Heat and Cardiovascular Disease</a></li>
+      <li><a href="${PLACEHOLDER_REF_URL}" target="_blank" rel="noopener noreferrer">Zhang et al. (2026) – Heatwaves induce blood pressure elevations in elderly hypertensive populations</a></li>
+    </ol>`;
+}
+
+const SCORE_PLACEHOLDER = '<div class="card"><div class="empty-hint">Run the intake parser to see the heat vulnerability score and summary here.</div></div>';
+let scoreTimer = null;
+
+// Shows the score card and counts the percentage up from 0. Resolves when the count finishes.
+function renderScore(parsed, result) {
+  const sev = result.severities['out_heatillness'];
+  const heatScore = sev ? sev.score : 0;
+  const tier = tierFor(heatScore);
+  const flagged = heatScore > FLAG_THRESHOLD;
+  document.getElementById('scoreBox').innerHTML = `
+    <div class="card headline-card reveal">
+      <div class="label">HEAT VULNERABILITY SCORE</div>
+      <div class="score-row"><span class="score" id="scoreNum" style="color:${tier.color}">0</span><span class="score-max">%</span></div>
+      <div class="flag-banner ${flagged ? 'flagged' : 'ok'}">${flagged ? '⚠ FLAGGED FOR REVIEW' : '✓ Below facility threshold'}</div>
+      <div class="threshold-line">Threshold: ${FLAG_THRESHOLD}% · ${tier.label} tier</div>
+    </div>`;
+  return new Promise(resolve => {
+    const el = document.getElementById('scoreNum');
+    const total = ms(900), tick = 30;
+    clearInterval(scoreTimer);
+    if (total === 0) { el.textContent = heatScore; resolve(); return; }
+    let t = 0;
+    scoreTimer = setInterval(() => {
+      t += tick;
+      const p = Math.min(1, t / total);
+      el.textContent = Math.round(heatScore * (1 - Math.pow(1 - p, 3))); // ease-out
+      if (p >= 1) { clearInterval(scoreTimer); resolve(); }
+    }, tick);
+  });
+}
+
+const SUMMARY_DELAY_MS = 1600; // simulated generation time
+let summaryTimer = null;
+
+function startSummary(parsed, result, onDone) {
+  const box = document.getElementById('summaryBox');
+  box.innerHTML = `<div class="card reveal"><h2 class="section-title">SUMMARY</h2>
+    <div class="sp-loading" role="status"><span class="spinner"></span><span>Generating summary…</span></div></div>`;
+  clearTimeout(summaryTimer);
+  summaryTimer = setTimeout(() => {
+    box.innerHTML = `<div class="card reveal"><h2 class="section-title">SUMMARY</h2>${buildSummaryHtml(parsed, result)}</div>`;
+    onDone();
+  }, ms(SUMMARY_DELAY_MS));
+}
+
+/* ============================= ORCHESTRATION ============================= */
+let runToken = 0;
+
+// Parse -> keywords highlight -> graph lights up step by step -> score counts up -> summary is "generated".
+async function runPipeline() {
+  const text = document.getElementById('intake').value;
+  const status = document.getElementById('statusLine');
+  if (!text.trim()) { status.textContent = 'Paste intake text first.'; return; }
+  const parsed = parseIntake(text);
+
+  const token = ++runToken;                        // a newer run cancels the steps of an older one
+  const stale = () => token !== runToken;
+  clearTimeout(summaryTimer); clearInterval(scoreTimer);
+  document.getElementById('scoreBox').innerHTML = SCORE_PLACEHOLDER;
+  document.getElementById('summaryBox').innerHTML = '';
+  resetGraph();
+
+  status.textContent = 'Parsing intake…';
+  renderPipeline(0);
+  paintHighlights();
+  await sleep(ms(900));                            // let the keyword highlights land
+  if (stale()) return;
+
+  renderPipeline(1);
+  status.textContent = 'Traversing the graph…';
+  const result = runTraversal(parsed);
+  prepareGraph(parsed);
+  if (!(await animateTraversal(parsed, result, stale))) return;
+
+  renderPipeline(2);
+  status.textContent = 'Scoring…';
+  await renderScore(parsed, result);
+  if (stale()) return;
+
+  renderPipeline(3);
+  status.textContent = 'Generating summary…';
+  startSummary(parsed, result, () => {
+    if (stale()) return;
+    renderPipeline(5);
+    status.textContent = `Done · age ${parsed.age || '?'} · ${parsed.meds.length} meds · ${HEAT_LABELS[parsed.heatKey]}`;
+  });
+}
+
+function init() {
+  const intake = document.getElementById('intake');
+  intake.value = EXAMPLE_TEXT;
+  fitIntake();
+  intake.addEventListener('input', () => { fitIntake(); clearHighlights(); });
+  intake.addEventListener('scroll', () => { document.getElementById('intakeBackdrop').scrollTop = intake.scrollTop; });
+  renderColumns();
+  renderNodeDetail();
+  const cols = document.getElementById('columns');
+  cols.addEventListener('click', e => { const el = e.target.closest('.node'); if (el) selectNode(el.dataset.id); });
+  cols.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const el = e.target.closest('.node'); if (el) { e.preventDefault(); selectNode(el.dataset.id); }
+  });
+  renderPipeline(-1);
+  requestAnimationFrame(redrawGraph);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { fitIntake(); redrawGraph(); }); // web fonts change text/node heights
+  window.addEventListener('resize', () => { fitIntake(); redrawGraph(); });
+  document.getElementById('runBtn').addEventListener('click', runPipeline);
+}
+init();
+</script>
+</body>
+</html>
