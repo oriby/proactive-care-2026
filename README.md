@@ -18,7 +18,12 @@ pip install -r requirements.txt
 uvicorn main:app --reload
 ```
 
-[INSERT INSTRUCTIONS FOR SPINNING UP FRONTEND]
+Run the frontend. From the `application/frontend` folder:
+
+```bash
+npm install
+npm run dev
+```
 
 ## Model
 

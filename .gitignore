@@ -1,2 +1,5 @@
 application/backend/__pycache__
 application/backend/venv
+application/frontend/node_modules
+application/frontend/dist
+application/frontend/package-lock.json

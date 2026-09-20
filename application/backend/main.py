@@ -3,11 +3,24 @@ import json
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
+ALERT_DIR = Path(__file__).resolve().parent / "alerts"
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+class Alert(BaseModel):
+    title: str
+    content: str
 
 
 class AssessRiskInput(BaseModel):
@@ -24,6 +37,14 @@ class AlertInput(BaseModel):
 
 class AlertOutput(BaseModel):
     message: str
+
+
+class AllAlertsInput(BaseModel):
+    pass
+
+
+class AllAlertsOutput(BaseModel):
+    alerts: list[Alert]
 
 
 def _load_medicine_effects() -> dict[str, str]:
@@ -44,6 +65,14 @@ def _count_medications() -> dict[str, int]:
         for med in patient["medications"]:
             counts[med] = counts.get(med, 0) + 1
     return counts
+
+
+@app.post("/all_alerts")
+def all_alerts(body: AllAlertsInput) -> AllAlertsOutput:
+    alerts = []
+    for file in sorted(ALERT_DIR.glob("*.txt")):
+        alerts.append(Alert(title=file.stem, content=file.read_text(encoding="utf-8")))
+    return AllAlertsOutput(alerts=alerts)
 
 
 @app.post("/assess_risk")
