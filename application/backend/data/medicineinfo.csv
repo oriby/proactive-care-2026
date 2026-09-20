@@ -1,0 +1,49 @@
+medication_type,drug_class,drug_name,heat_related_effects,evidence
+CARDIOVASCULAR_MEDICATIONS; ANTIHYPERTENSIVES,DIURETICS,FUROSEMIDE,"Electrolyte imbalance, Volume depletion, Dehydration, Increased risk of fainting and falls, Reduced thirst sensation",CDC
+CARDIOVASCULAR_MEDICATIONS; ANTIHYPERTENSIVES,DIURETICS,HYDROCHLOROTHIAZIDE,"Electrolyte imbalance, Volume depletion, Dehydration, Increased risk of fainting and falls, Reduced thirst sensation",CDC
+CARDIOVASCULAR_MEDICATIONS; ANTIHYPERTENSIVES,DIURETICS,ACETAZOLAMIDE,"Electrolyte imbalance, Volume depletion, Dehydration, Increased risk of fainting and falls, Reduced thirst sensation",CDC
+ANTIHYPERTENSIVES,BETA_BLOCKERS,ATENOLOL,"Reduced superficial vasodilation, Decreased sweating, Reduced blood pressure, increased risk of fainting and falls",CDC
+ANTIHYPERTENSIVES,BETA_BLOCKERS,METOPROLOL,"Reduced superficial vasodilation, Decreased sweating, Reduced blood pressure, increased risk of fainting and falls",CDC
+ANTIHYPERTENSIVES,BETA_BLOCKERS,PROPRANOLOL,"Reduced superficial vasodilation, Decreased sweating, Reduced blood pressure, increased risk of fainting and falls",CDC
+ANTIHYPERTENSIVES,CALCIUM_CHANNEL_BLOCKERS,AMLODIPINE,"Decreased blood pressure, Increased risk of fainting and falls, Electrolyte imbalance",CDC
+ANTIHYPERTENSIVES,CALCIUM_CHANNEL_BLOCKERS,FELODIPINE,"Decreased blood pressure, Increased risk of fainting and falls, Electrolyte imbalance",CDC
+ANTIHYPERTENSIVES,CALCIUM_CHANNEL_BLOCKERS,NIFEDIPINE,"Decreased blood pressure, Increased risk of fainting and falls, Electrolyte imbalance",CDC
+ANTIHYPERTENSIVES,ACEIs,ENALAPRIL,"Decreased blood pressure, Increased risk of fainting and falls, Reduced thrist sensation",CDC
+ANTIHYPERTENSIVES,ACEIs,LISINOPRIL,"Decreased blood pressure, Increased risk of fainting and falls, Reduced thrist sensation",CDC
+ANTIHYPERTENSIVES,ACEIs,RAMIPRIL,"Decreased blood pressure, Increased risk of fainting and falls, Reduced thrist sensation",CDC
+ANTIHYPERTENSIVES,ARBs,VALSARTAN,"Decreased blood pressure, Increased risk of fainting and falls, Reduced thrist sensation",CDC
+ANTIHYPERTENSIVES,ARBs,LOSARTAN,"Decreased blood pressure, Increased risk of fainting and falls, Reduced thrist sensation",CDC
+ANTIHYPERTENSIVES,ARNIs,SACUBITRIL,"Decreased blood pressure, Increased risk of fainting and falls, Reduced thrist sensation",CDC
+ANTI_PLATELET_MEDICATIONS,,CLOPIDOGREL,Reduced superficial vasodilation,CDC
+ANTI_PLATELET_MEDICATIONS,,ASPIRIN,Reduced superficial vasodilation,CDC
+ANTIANGINALS,NITRATES,GLYCERYL_TRINITRATE,Worsened hypotension,CDC
+ANTIANGINALS,NITRATES,ISOSORBIDE,Worsened hypotension,CDC
+ANTIANGINALS,NITRATES,MONONITRATE,Worsened hypotension,CDC
+PSYCHIATRIC_MEDICATIONS,MOOD_STABLIZERS,LITHIUM,"Diabetes, Insipidus induced water loss, Risk for fainting and falls, Electrolyte imbalance, Risk for toxicity in setting of dehydration because of narrow therapeutic index",CDC
+PSYCHIATRIC_MEDICATIONS,ANTIPSYCHOTICS,HALOPERIDOL,"Impaired sweating, Impaired temperature",CDC
+PSYCHIATRIC_MEDICATIONS,ANTIPSYCHOTICS,OLANZAPINE,"Impaired sweating, Impaired temperature",CDC
+PSYCHIATRIC_MEDICATIONS,ANTIPSYCHOTICS,QUETIAPINE,"Impaired sweating, Impaired temperature",CDC
+PSYCHIATRIC_MEDICATIONS,ANTIPSYCHOTICS,RISPERIDONE,"Impaired sweating, Impaired temperature",CDC
+PSYCHIATRIC_MEDICATIONS,SSRIS_AND_SNRIS,FLUOXETINE,Increased sweating,CDC
+PSYCHIATRIC_MEDICATIONS,SSRIS_AND_SNRIS,SERTRALINE,Increased sweating,CDC
+PSYCHIATRIC_MEDICATIONS,SSRIS_AND_SNRIS,DULOXATINE,Increased sweating,CDC
+PSYCHIATRIC_MEDICATIONS,SSRIS_AND_SNRIS,VENLAFAXINE,Increased sweating,CDC
+PSYCHIATRIC_MEDICATIONS,TRICYCLIC_ANTIDEPRESSANTS,AMITRIPTYLINE,Decreased sweating,CDC
+PSYCHIATRIC_MEDICATIONS,TRICYCLIC_ANTIDEPRESSANTS,CLOMIPRAMINE,Decreased sweating,CDC
+ANTISEIZURE_MEDICATIONS,TOPIRAMATE,TOPIRAMATE,Decreased sweating,CDC
+ANTISEIZURE_MEDICATIONS,OXCARBAZEPINE,OXCARBAZEPINE,"Increased sweating, Increased urination",CDC
+ANTISEIZURE_MEDICATIONS,CARBAMAZEPINE,CARBAMAZEPINE,Dizziness and weakness (especially after increased dose),CDC
+ANTIHISTAMINES,PROMETHAZINE,PROMETHAZINE,"Decreased sweating, Imapired thermoregulation",CDC
+ANTIHISTAMINES,DOXYLAMINE,DOXYLAMINE,"Decreased sweating, Imapired thermoregulation",CDC
+ANTIHISTAMINES,DIPHENHYDRAMINE,DIPHENHYDRAMINE,"Decreased sweating, Imapired thermoregulation",CDC
+ANALGESICS,NONSTEROIDAL_ANTI_INFLAMMATORY_DRUGS,,Kidney injury with dehydration,CDC
+ANALGESICS,ASPIRIN,ASPIRIN,"Increased heat production with overdose, Kidney injury with dehydration",CDC
+ANALGESICS,ACETAMINOPHEN,ACETAMINOPHEN,"Heat related liver injury, Increased risk for acetaminophen, Hepatoxicity",CDC
+ANTIBIOTICS,SULFONAMIDES,SULFAMETHOXAZOLE,Kidney injury risk with dehydration,CDC
+ANTIRETROVIRALS,PROTEASE_INHIBITORS,INDINAVIR,Kidney injury risk with dehydration,CDC
+THYROID_REPLACEMENT,THYROID_HORMONE,LEVOTHYROXINE,Excessive sweating,CDC
+STIMULANTS,STIMULANTS,COCAINE,"Reduced sweating, Reduced dilation of skin blood vessels, Impaired heat perception",CDC
+STIMULANTS,STIMULANTS,AMPHETAMINE,Increased body temperature,CDC
+STIMULANTS,STIMULANTS,METHYLPHENIDATE,Increased body temperature,CDC
+HALLUCINOGENS,HALLUCINOGENS,MDMA,"Reduced sweating, Reduced skin blood vessel dilation, Impaired heat perception",CDC
+ALCOHOL,ALCOHOL,ALCOHOL,"Increased sweating, Increased urination, Impaired heat perception",CDC

@@ -1,0 +1,20 @@
+{
+  "patients": [
+    {
+      "name": "Joe",
+      "medications": ["FUROSEMIDE"]
+    },
+    {
+      "name": "Daniel",
+      "medications": ["LOSARTAN"]
+    },
+    {
+      "name": "David",
+      "medications": ["QUETIAPINE"]
+    },
+    {
+      "name": "Helen",
+      "medications": ["QUETIAPINE", "LEVOTHYROXINE"]
+    }
+  ]
+}

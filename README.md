@@ -24,3 +24,6 @@ uvicorn main:app --reload
 
 A demonstration showing the machine learning model we'd implement for decision-making if we had more time.
 
+## Notes
+
+Source for medicine heat effect information: https://www.cdc.gov/heat-health/hcp/clinical-guidance/heat-and-medications-guidance-for-clinicians.html
